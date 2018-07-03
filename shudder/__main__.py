@@ -24,22 +24,25 @@ import signal
 import subprocess
 import sys
 
-def receive_signal(signum, stack):
-    if signum in [1,2,3,15]:
-        print 'Caught signal %s, exiting.' %(str(signum))
-        sys.exit()
-    else:
-        print 'Caught signal %s, ignoring.' %(str(signum))
-
 if __name__ == '__main__':
+    sqs_connection, sqs_queue = queue.create_queue()
+    sns_connection, subscription_arn = queue.subscribe_sns(sqs_queue)
+
+    def receive_signal(signum, stack):
+        if signum in [1, 2, 3, 15]:
+            print 'Caught signal %s, exiting.' % (str(signum))
+            queue.clean_up_sns(sns_connection, subscription_arn, sqs_queue)
+            sys.exit()
+        else:
+            print 'Caught signal %s, ignoring.' % (str(signum))
+
+
     uncatchable = ['SIG_DFL','SIGSTOP','SIGKILL']
     for i in [x for x in dir(signal) if x.startswith("SIG")]:
         if not i in uncatchable:
             signum = getattr(signal,i)
-            signal.signal(signum,receive_signal)
+            signal.signal(signum, receive_signal)
 
-    sqs_connection, sqs_queue = queue.create_queue()
-    sns_connection, subscription_arn = queue.subscribe_sns(sqs_queue)
     while True:
         message = queue.poll_queue(sqs_connection, sqs_queue)
         if message or metadata.poll_instance_metadata():
